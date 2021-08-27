@@ -9,7 +9,7 @@
 
 // spell-checker:ignore (vars) fperm srwx
 
-use libc::{mode_t, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWOTH, S_IWUSR};
+use libc::{mode_t, umask, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWOTH, S_IWUSR};
 
 pub fn parse_numeric(fperm: u32, mut mode: &str) -> Result<u32, String> {
     let (op, pos) = parse_op(mode, Some('='))?;
@@ -29,20 +29,33 @@ pub fn parse_numeric(fperm: u32, mut mode: &str) -> Result<u32, String> {
     }
 }
 
+fn get_umask() -> mode_t {
+    // There's no portable way to read the umask without changing it.
+    // We have to replace it and then quickly set it back, hopefully before
+    // some other thread is affected.
+    // On modern Linux kernels the current umask could instead be read
+    // from /proc/self/status. But that's a lot of work.
+    // SAFETY: umask always succeeds and doesn't operate on memory. Races are
+    // possible but it can't violate Rust's guarantees.
+    let mask;
+    unsafe {
+        mask = umask(0);
+        umask(mask);
+    }
+    mask
+}
+
 pub fn parse_symbolic(
     mut fperm: u32,
     mut mode: &str,
     considering_dir: bool,
 ) -> Result<u32, String> {
-    #[cfg(unix)]
-    use libc::umask;
-
     let (mask, pos) = parse_levels(mode);
     if pos == mode.len() {
         return Err(format!("invalid mode ({})", mode));
     }
     let respect_umask = pos == 0;
-    let last_umask = unsafe { umask(0) };
+    let last_umask = get_umask();
     mode = &mode[pos..];
     while !mode.is_empty() {
         let (op, pos) = parse_op(mode, None)?;
@@ -58,9 +71,6 @@ pub fn parse_symbolic(
             '=' => fperm = (fperm & !mask) | (srwx & mask),
             _ => unreachable!(),
         }
-    }
-    unsafe {
-        umask(last_umask);
     }
     Ok(fperm)
 }

@@ -10,18 +10,15 @@ pub mod fsext;
 pub mod ringbuffer;
 
 // * (platform-specific) feature-gated modules
-// ** non-windows
-#[cfg(all(not(windows), feature = "mode"))]
-pub mod mode;
-
 // ** unix-only
 #[cfg(all(unix, feature = "entries"))]
 pub mod entries;
+#[cfg(all(unix, feature = "mode"))]
+pub mod mode;
 #[cfg(all(unix, feature = "perms"))]
 pub mod perms;
 #[cfg(all(unix, feature = "process"))]
 pub mod process;
-
 #[cfg(all(unix, not(target_os = "fuchsia"), feature = "signals"))]
 pub mod signals;
 #[cfg(all(
@@ -32,6 +29,7 @@ pub mod signals;
     feature = "utmpx"
 ))]
 pub mod utmpx;
+
 // ** windows-only
 #[cfg(all(windows, feature = "wide"))]
 pub mod wide;

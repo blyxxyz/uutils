@@ -40,12 +40,11 @@ pub use crate::features::fsext;
 pub use crate::features::ringbuffer;
 
 // * (platform-specific) feature-gated modules
-// ** non-windows
-#[cfg(all(not(windows), feature = "mode"))]
-pub use crate::features::mode;
 // ** unix-only
 #[cfg(all(unix, feature = "entries"))]
 pub use crate::features::entries;
+#[cfg(all(not(windows), feature = "mode"))]
+pub use crate::features::mode;
 #[cfg(all(unix, feature = "perms"))]
 pub use crate::features::perms;
 #[cfg(all(unix, feature = "process"))]
