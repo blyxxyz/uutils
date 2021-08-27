@@ -51,12 +51,12 @@ fn get_errno() -> i32 {
 pub fn stdin_is_pipe_or_fifo() -> bool {
     let fd = stdin().lock().as_raw_fd();
     fd >= 0 // GNU tail checks fd >= 0
-                            && match fstat(fd) {
-                                Ok(stat) => {
-                                    let mode = stat.st_mode;
-                                    // NOTE: This is probably not the most correct way to check this
-                                    (mode & S_IFIFO != 0) || (mode & S_IFSOCK != 0)
-                                }
-                                Err(err) => panic!("{}", err),
-                            }
+        && match fstat(fd) {
+            Ok(stat) => {
+                let mode = stat.st_mode;
+                // NOTE: This is probably not the most correct way to check this
+                (mode & S_IFIFO != 0) || (mode & S_IFSOCK != 0)
+            }
+            Err(err) => panic!("{}", err),
+        }
 }
