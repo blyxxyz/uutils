@@ -336,20 +336,19 @@ impl Who {
         };
 
         let f = if self.args.len() == 1 {
-            self.args[0].as_ref()
+            Some(self.args[0].as_str())
         } else {
-            utmpx::DEFAULT_FILE
+            None
         };
         if self.short_list {
-            let users = Utmpx::iter_all_records()
-                .read_from(f)
+            let users = Utmpx::iter_all_records_from(f)
                 .filter(Utmpx::is_user_process)
                 .map(|ut| ut.user())
                 .collect::<Vec<_>>();
             println!("{}", users.join(" "));
             println!("# users={}", users.len());
         } else {
-            let records = Utmpx::iter_all_records().read_from(f).peekable();
+            let records = Utmpx::iter_all_records_from(f).peekable();
 
             if self.include_heading {
                 self.print_heading()
