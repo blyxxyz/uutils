@@ -17,6 +17,8 @@ pub mod entries;
 pub mod mode;
 #[cfg(all(unix, feature = "perms"))]
 pub mod perms;
+#[cfg(all(unix, feature = "pipes"))]
+pub mod pipes;
 #[cfg(all(unix, feature = "process"))]
 pub mod process;
 #[cfg(all(unix, not(target_os = "fuchsia"), feature = "signals"))]

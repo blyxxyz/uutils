@@ -30,6 +30,7 @@ data-encoding = { version="2.1", optional=true }
 data-encoding-macro = { version="0.1.12", optional=true }
 z85 = { version="3.0.3", optional=true }
 libc = { version="0.2.15, <= 0.2.85", optional=true } ## libc: initial utmp support added in v0.2.15; but v0.2.68 breaks the build for MinSRV v1.31.0
+nix = { version="0.20", optional=true }
 once_cell = { version="1.8.0", optional=true }
 
 [dev-dependencies]
@@ -57,3 +58,4 @@ signals = []
 utf8 = []
 utmpx = ["time", "libc", "dns-lookup", "once_cell"]
 wide = []
+pipes = ["nix"]

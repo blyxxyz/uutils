@@ -3174,6 +3174,7 @@ dependencies = [
  "getopts",
  "lazy_static",
  "libc",
+ "nix 0.20.0",
  "once_cell",
  "termion",
  "thiserror",
