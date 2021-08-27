@@ -264,7 +264,7 @@ fn parse_spec(spec: &str) -> UResult<(Option<u32>, Option<u32>)> {
         Some(
             Passwd::locate(args[0])
                 .map_err(|_| USimpleError::new(1, format!("invalid user: '{}'", spec)))?
-                .uid(),
+                .uid,
         )
     } else {
         None
@@ -273,7 +273,7 @@ fn parse_spec(spec: &str) -> UResult<(Option<u32>, Option<u32>)> {
         Some(
             Group::locate(args[1])
                 .map_err(|_| USimpleError::new(1, format!("invalid group: '{}'", spec)))?
-                .gid(),
+                .gid,
         )
     } else {
         None

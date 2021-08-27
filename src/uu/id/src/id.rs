@@ -244,7 +244,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         // GNU's `id` does not support the flags: -p/-P/-A.
         if matches.is_present(options::OPT_PASSWORD) {
             // BSD's `id` ignores all but the first specified user
-            pline(possible_pw.map(|v| v.uid()));
+            pline(possible_pw.as_ref().map(|v| v.uid));
             return Ok(());
         };
         if matches.is_present(options::OPT_HUMAN_READABLE) {
@@ -258,7 +258,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             return Ok(());
         }
 
-        let (uid, gid) = possible_pw.map(|p| (p.uid(), p.gid())).unwrap_or((
+        let (uid, gid) = possible_pw.as_ref().map(|p| (p.uid, p.gid)).unwrap_or((
             if state.rflag { getuid() } else { geteuid() },
             if state.rflag { getgid() } else { getegid() },
         ));
@@ -301,7 +301,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let groups = entries::get_groups_gnu(Some(gid)).unwrap();
         let groups = if state.user_specified {
-            possible_pw.map(|p| p.belongs_to()).unwrap()
+            possible_pw.as_ref().map(|p| p.belongs_to()).unwrap()
         } else {
             groups.clone()
         };
@@ -452,7 +452,7 @@ pub fn uu_app() -> App<'static, 'static> {
 
 fn pretty(possible_pw: Option<Passwd>) {
     if let Some(p) = possible_pw {
-        print!("uid\t{}\ngroups\t", p.name());
+        print!("uid\t{}\ngroups\t", p.name);
         println!(
             "{}",
             p.belongs_to()
@@ -465,10 +465,10 @@ fn pretty(possible_pw: Option<Passwd>) {
         let login = cstr2cow!(getlogin() as *const _);
         let rid = getuid();
         if let Ok(p) = Passwd::locate(rid) {
-            if login == p.name() {
+            if login == p.name {
                 println!("login\t{}", login);
             }
-            println!("uid\t{}", p.name());
+            println!("uid\t{}", p.name);
         } else {
             println!("uid\t{}", rid);
         }
@@ -476,7 +476,7 @@ fn pretty(possible_pw: Option<Passwd>) {
         let eid = getegid();
         if eid == rid {
             if let Ok(p) = Passwd::locate(eid) {
-                println!("euid\t{}", p.name());
+                println!("euid\t{}", p.name);
             } else {
                 println!("euid\t{}", eid);
             }
@@ -485,7 +485,7 @@ fn pretty(possible_pw: Option<Passwd>) {
         let rid = getgid();
         if rid != eid {
             if let Ok(g) = Group::locate(rid) {
-                println!("euid\t{}", g.name());
+                println!("euid\t{}", g.name);
             } else {
                 println!("euid\t{}", rid);
             }
@@ -510,16 +510,16 @@ fn pline(possible_uid: Option<uid_t>) {
 
     println!(
         "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
-        pw.name(),
-        pw.user_passwd(),
-        pw.uid(),
-        pw.gid(),
-        pw.user_access_class(),
-        pw.passwd_change_time(),
-        pw.expiration(),
-        pw.user_info(),
-        pw.user_dir(),
-        pw.user_shell()
+        pw.name,
+        pw.user_passwd,
+        pw.uid,
+        pw.gid,
+        pw.user_access_class,
+        pw.passwd_change_time,
+        pw.expiration,
+        pw.user_info,
+        pw.user_dir,
+        pw.user_shell
     );
 }
 
@@ -530,13 +530,7 @@ fn pline(possible_uid: Option<uid_t>) {
 
     println!(
         "{}:{}:{}:{}:{}:{}:{}",
-        pw.name(),
-        pw.user_passwd(),
-        pw.uid(),
-        pw.gid(),
-        pw.user_info(),
-        pw.user_dir(),
-        pw.user_shell()
+        pw.name, pw.user_passwd, pw.uid, pw.gid, pw.user_info, pw.user_dir, pw.user_shell
     );
 }
 

@@ -180,6 +180,7 @@ getgrgid
 getgrnam
 getgrouplist
 getgroups
+getpwent
 getpwnam
 getpwuid
 getuid
