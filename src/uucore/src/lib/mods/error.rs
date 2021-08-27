@@ -380,6 +380,7 @@ impl Error for UIoError {}
 impl Display for UIoError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         use std::io::ErrorKind::*;
+        let owned_msg;
         write!(
             f,
             "{}: {}",
@@ -401,9 +402,11 @@ impl Display for UIoError {
                 TimedOut => "Timed out",
                 WriteZero => "Write zero",
                 Interrupted => "Interrupted",
-                Other => "Other",
                 UnexpectedEof => "Unexpected end of file",
-                _ => panic!("Unexpected io error: {}", self.inner),
+                _ => {
+                    owned_msg = strip_errno(&self.inner);
+                    &owned_msg
+                }
             },
         )
     }
