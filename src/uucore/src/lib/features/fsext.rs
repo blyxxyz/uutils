@@ -30,11 +30,7 @@ use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 #[cfg(windows)]
-use std::os::windows::ffi::OsStringExt;
-#[cfg(windows)]
 use winapi::shared::minwindef::DWORD;
-#[cfg(windows)]
-use winapi::um::errhandlingapi::GetLastError;
 #[cfg(windows)]
 use winapi::um::fileapi::GetDiskFreeSpaceW;
 #[cfg(windows)]
@@ -61,11 +57,17 @@ macro_rules! String2LPWSTR {
 
 #[cfg(windows)]
 #[allow(non_snake_case)]
+fn GetLastError() -> DWORD {
+    // last_os_error() calls the raw GetLastError()
+    // This way we don't have to use unsafe
+    std::io::Error::last_os_error().raw_os_error().unwrap_or(0) as DWORD
+}
+
+#[cfg(windows)]
+#[allow(non_snake_case)]
 fn LPWSTR2String(buf: &[u16]) -> String {
-    let len = unsafe { libc::wcslen(buf.as_ptr()) };
-    OsString::from_wide(&buf[..len as usize])
-        .into_string()
-        .unwrap()
+    let len = buf.iter().position(|&n| n == 0).unwrap();
+    String::from_utf16(&buf[..len]).unwrap()
 }
 
 use self::time::Timespec;
@@ -159,16 +161,13 @@ impl MountInfo {
     fn set_missing_fields(&mut self) {
         #[cfg(unix)]
         {
+            use std::os::unix::fs::MetadataExt;
             // We want to keep the dev_id on Windows
             // but set dev_id
-            let path = CString::new(self.mount_dir.clone()).unwrap();
-            unsafe {
-                let mut stat = mem::zeroed();
-                if libc::stat(path.as_ptr(), &mut stat) == 0 {
-                    self.dev_id = (stat.st_dev as i32).to_string();
-                } else {
-                    self.dev_id = "".to_string();
-                }
+            if let Ok(stat) = std::fs::metadata(&self.mount_dir) {
+                self.dev_id = stat.dev().to_string()
+            } else {
+                self.dev_id = "".to_string();
             }
         }
         // set MountInfo::dummy
@@ -415,9 +414,7 @@ pub fn read_fs_list() -> Vec<MountInfo> {
             FindFirstVolumeW(volume_name_buf.as_mut_ptr(), volume_name_buf.len() as DWORD)
         };
         if INVALID_HANDLE_VALUE == find_handle {
-            crash!(EXIT_ERR, "FindFirstVolumeW failed: {}", unsafe {
-                GetLastError()
-            });
+            crash!(EXIT_ERR, "FindFirstVolumeW failed: {}", GetLastError());
         }
         let mut mounts = Vec::<MountInfo>::new();
         loop {
@@ -436,7 +433,7 @@ pub fn read_fs_list() -> Vec<MountInfo> {
                     volume_name_buf.len() as DWORD,
                 )
             } {
-                let err = unsafe { GetLastError() };
+                let err = GetLastError();
                 if err != winapi::shared::winerror::ERROR_NO_MORE_FILES {
                     crash!(EXIT_ERR, "FindNextVolumeW failed: {}", err);
                 }
@@ -497,7 +494,7 @@ impl FsUsage {
             crash!(
                 EXIT_ERR,
                 "GetVolumePathNamesForVolumeNameW failed: {}",
-                unsafe { GetLastError() }
+                GetLastError()
             );
         }
 
@@ -517,9 +514,7 @@ impl FsUsage {
         };
         if 0 == success {
             // Fails in case of CD for example
-            //crash!(EXIT_ERR, "GetDiskFreeSpaceW failed: {}", unsafe {
-            //GetLastError()
-            //});
+            //crash!(EXIT_ERR, "GetDiskFreeSpaceW failed: {}", GetLastError());
         }
 
         let bytes_per_cluster = sectors_per_cluster as u64 * bytes_per_sector as u64;
