@@ -8,10 +8,15 @@
 #[macro_use]
 extern crate uucore;
 
+use std::ffi::CString;
+use std::io;
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
+
 use clap::{crate_version, App, Arg};
 use libc::mkfifo;
-use std::ffi::CString;
-use uucore::InvalidEncodingHandling;
+
+use uucore::error::{set_exit_code, FromIo, UResult, USimpleError};
 
 static NAME: &str = "mkfifo";
 static USAGE: &str = "mkfifo [OPTION]... NAME...";
@@ -21,14 +26,11 @@ mod options {
     pub static MODE: &str = "mode";
     pub static SE_LINUX_SECURITY_CONTEXT: &str = "Z";
     pub static CONTEXT: &str = "context";
-    pub static FIFO: &str = "fifo";
+    pub static FIFO: &str = "NAME";
 }
 
-pub fn uumain(args: impl uucore::Args) -> i32 {
-    let args = args
-        .collect_str(InvalidEncodingHandling::Ignore)
-        .accept_any();
-
+#[uucore_procs::gen_uumain]
+pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().get_matches_from(args);
 
     if matches.is_present(options::CONTEXT) {
@@ -42,31 +44,28 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         Some(m) => match usize::from_str_radix(m, 8) {
             Ok(m) => m,
             Err(e) => {
-                show_error!("invalid mode: {}", e);
-                return 1;
+                return Err(USimpleError::new(1, format!("invalid mode: {}", e)));
             }
         },
         None => 0o666,
     };
 
-    let fifos: Vec<String> = match matches.values_of(options::FIFO) {
-        Some(v) => v.clone().map(|s| s.to_owned()).collect(),
-        None => crash!(1, "missing operand"),
-    };
-
-    let mut exit_code = 0;
-    for f in fifos {
+    for f in matches.values_of_os(options::FIFO).unwrap_or_default() {
         let err = unsafe {
             let name = CString::new(f.as_bytes()).unwrap();
             mkfifo(name.as_ptr(), mode as libc::mode_t)
         };
         if err == -1 {
-            show_error!("cannot create fifo '{}': File exists", f);
-            exit_code = 1;
+            show_error!(
+                "{}",
+                io::Error::last_os_error()
+                    .map_err_context(|| format!("cannot create fifo '{}'", Path::new(f).display()))
+            );
+            set_exit_code(1);
         }
     }
 
-    exit_code
+    Ok(())
 }
 
 pub fn uu_app() -> App<'static, 'static> {
@@ -97,5 +96,10 @@ pub fn uu_app() -> App<'static, 'static> {
                     or SMACK security context to CTX",
                 ),
         )
-        .arg(Arg::with_name(options::FIFO).hidden(true).multiple(true))
+        .arg(
+            Arg::with_name(options::FIFO)
+                .hidden(true)
+                .multiple(true)
+                .required(true),
+        )
 }

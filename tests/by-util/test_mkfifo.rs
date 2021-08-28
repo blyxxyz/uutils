@@ -2,7 +2,9 @@ use crate::common::util::*;
 
 #[test]
 fn test_create_fifo_missing_operand() {
-    new_ucmd!().fails().stderr_is("mkfifo: missing operand");
+    new_ucmd!()
+        .fails()
+        .stderr_contains("arguments were not provided");
 }
 
 #[test]
@@ -41,5 +43,5 @@ fn test_create_one_fifo_already_exists() {
         .arg("abcdef")
         .arg("abcdef")
         .fails()
-        .stderr_is("mkfifo: cannot create fifo 'abcdef': File exists");
+        .stderr_is("mkfifo: cannot create fifo 'abcdef': Already exists");
 }
