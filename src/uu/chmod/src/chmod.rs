@@ -84,6 +84,7 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
     } else {
         modes.to_string()
     };
+    // FIXME: Use values_of_os and operate on Path(Buf)
     let mut files: Vec<String> = matches
         .values_of(options::FILE)
         .map(|v| v.map(ToString::to_string).collect())
@@ -210,6 +211,7 @@ impl Chmoder {
     fn chmod(&self, files: Vec<String>) -> Result<(), i32> {
         let mut r = Ok(());
 
+        // FIXME: Try to diagnose errors after failure, not before
         for filename in &files {
             let filename = &filename[..];
             let file = Path::new(filename);
@@ -222,7 +224,7 @@ impl Chmoder {
                     if !self.quiet {
                         show_error!("cannot operate on dangling symlink '{}'", filename);
                     }
-                } else {
+                } else if !self.quiet {
                     show_error!("cannot access '{}': No such file or directory", filename);
                 }
                 return Err(1);
@@ -334,8 +336,8 @@ impl Chmoder {
             Err(1)
         } else {
             if self.verbose || self.changes {
-                show_error!(
-                    "mode of '{}' changed from {:o} ({}) to {:o} ({})",
+                println!(
+                    "mode of '{}' changed from {:04o} ({}) to {:04o} ({})",
                     file.display(),
                     fperm,
                     display_permissions_unix(fperm as mode_t, false),
