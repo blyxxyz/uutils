@@ -68,7 +68,6 @@ mod platform {
     use self::winapi::um::winbase;
     use self::winapi::um::winnt;
     use std::fs::OpenOptions;
-    use std::mem;
     use std::os::windows::prelude::*;
     use std::path::Path;
     use uucore::wide::{FromWide, ToWide};
@@ -95,8 +94,7 @@ mod platform {
     }
 
     unsafe fn find_first_volume() -> (String, winnt::HANDLE) {
-        #[allow(deprecated)]
-        let mut name: [winnt::WCHAR; minwindef::MAX_PATH] = mem::uninitialized();
+        let mut name = [0_u16; minwindef::MAX_PATH];
         let handle = winapi::um::fileapi::FindFirstVolumeW(
             name.as_mut_ptr(),
             name.len() as minwindef::DWORD,
@@ -114,8 +112,7 @@ mod platform {
         let (first_volume, next_volume_handle) = find_first_volume();
         let mut volumes = vec![first_volume];
         loop {
-            #[allow(deprecated)]
-            let mut name: [winnt::WCHAR; minwindef::MAX_PATH] = mem::uninitialized();
+            let mut name = [0_u16; minwindef::MAX_PATH];
             if winapi::um::fileapi::FindNextVolumeW(
                 next_volume_handle,
                 name.as_mut_ptr(),
