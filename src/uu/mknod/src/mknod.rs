@@ -11,11 +11,13 @@
 extern crate uucore;
 
 use std::ffi::CString;
+use std::io;
 
 use clap::{crate_version, App, Arg, ArgMatches};
 use libc::{dev_t, mode_t};
 use libc::{S_IFBLK, S_IFCHR, S_IFIFO, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWOTH, S_IWUSR};
 
+use uucore::error::{FromIo, UResult, USimpleError};
 use uucore::InvalidEncodingHandling;
 
 static ABOUT: &str = "Create the special file NAME of the given TYPE.";
@@ -47,41 +49,36 @@ fn makedev(maj: u64, min: u64) -> dev_t {
     ((min & 0xff) | ((maj & 0xfff) << 8) | ((min & !0xff) << 12) | ((maj & !0xfff) << 32)) as dev_t
 }
 
-#[cfg(windows)]
-fn _mknod(file_name: &str, mode: mode_t, dev: dev_t) -> i32 {
-    panic!("Unsupported for windows platform")
-}
-
-#[cfg(unix)]
-fn _mknod(file_name: &str, mode: mode_t, dev: dev_t) -> i32 {
+fn mknod(file_name: &str, mode: mode_t, dev: dev_t) -> io::Result<()> {
     let c_str = CString::new(file_name).expect("Failed to convert to CString");
 
     // the user supplied a mode
     let set_umask = mode & MODE_RW_UGO != MODE_RW_UGO;
 
+    // FIXME: this error handling is unidiomatic
     unsafe {
         // store prev umask
         let last_umask = if set_umask { libc::umask(0) } else { 0 };
 
-        let errno = libc::mknod(c_str.as_ptr(), mode, dev);
+        let res = libc::mknod(c_str.as_ptr(), mode, dev);
 
         // set umask back to original value
         if set_umask {
             libc::umask(last_umask);
         }
 
-        if errno == -1 {
-            let c_str = CString::new(uucore::execution_phrase().as_bytes())
-                .expect("Failed to convert to CString");
-            // shows the error from the mknod syscall
-            libc::perror(c_str.as_ptr());
+        if res == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
         }
-        errno
     }
 }
 
 #[allow(clippy::cognitive_complexity)]
-pub fn uumain(args: impl uucore::Args) -> i32 {
+#[uucore_procs::gen_uumain]
+pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+    // FIXME: use OsStr/Path
     let args = args
         .collect_str(InvalidEncodingHandling::Ignore)
         .accept_any();
@@ -94,8 +91,7 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
     let mode = match get_mode(&matches) {
         Ok(mode) => mode,
         Err(err) => {
-            show_error!("{}", err);
-            return 1;
+            return Err(USimpleError::new(1, err));
         }
     };
 
@@ -112,24 +108,28 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
 
     if ch == 'p' {
         if matches.is_present("major") || matches.is_present("minor") {
-            eprintln!("Fifos do not have major and minor device numbers.");
-            eprintln!(
-                "Try '{} --help' for more information.",
-                uucore::execution_phrase()
-            );
-            1
+            return Err(USimpleError::new(
+                1,
+                format!(
+                    "Fifos do not have major and minor device numbers.\n\
+                     Try '{} --help' for more information.",
+                    uucore::execution_phrase()
+                ),
+            ));
         } else {
-            _mknod(file_name, S_IFIFO | mode, 0)
+            mknod(file_name, S_IFIFO | mode, 0)
         }
     } else {
         match (matches.value_of("major"), matches.value_of("minor")) {
             (None, None) | (_, None) | (None, _) => {
-                eprintln!("Special files require major and minor device numbers.");
-                eprintln!(
-                    "Try '{} --help' for more information.",
-                    uucore::execution_phrase()
-                );
-                1
+                return Err(USimpleError::new(
+                    1,
+                    format!(
+                        "Special files require major and minor device numbers.\n\
+                         Try '{} --help' for more information.",
+                        uucore::execution_phrase()
+                    ),
+                ));
             }
             (Some(major), Some(minor)) => {
                 let major = major.parse::<u64>().expect("validated by clap");
@@ -138,16 +138,17 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
                 let dev = makedev(major, minor);
                 if ch == 'b' {
                     // block special file
-                    _mknod(file_name, S_IFBLK | mode, dev)
+                    mknod(file_name, S_IFBLK | mode, dev)
                 } else if ch == 'c' || ch == 'u' {
                     // char special file
-                    _mknod(file_name, S_IFCHR | mode, dev)
+                    mknod(file_name, S_IFCHR | mode, dev)
                 } else {
                     unreachable!("{} was validated to be only b, c or u", ch);
                 }
             }
         }
     }
+    .map_err_context(|| file_name.into())
 }
 
 pub fn uu_app() -> App<'static, 'static> {
