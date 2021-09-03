@@ -62,6 +62,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
 pub fn uu_app() -> App<'static, 'static> {
     App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .version(VERSION)
         .about(ABOUT)
         .arg(

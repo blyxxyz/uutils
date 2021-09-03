@@ -286,6 +286,7 @@ pub fn determine_backup_suffix(matches: &ArgMatches) -> String {
 ///
 /// fn main() {
 ///     let matches = App::new("app")
+///         .settings(uucore::DEFAULT_APP_SETTINGS)
 ///         .arg(backup_control::arguments::backup())
 ///         .arg(backup_control::arguments::backup_no_args())
 ///         .get_matches_from(vec![

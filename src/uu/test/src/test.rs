@@ -87,6 +87,7 @@ for details about the options it supports.";
 
 pub fn uu_app() -> App<'static, 'static> {
     App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .setting(AppSettings::DisableHelpFlags)
         .setting(AppSettings::DisableVersion)
 }
@@ -104,6 +105,7 @@ pub fn uumain(mut args: impl uucore::Args) -> i32 {
         if args.len() == 1 && (args[0] == "--help" || args[0] == "--version") {
             // Let clap pretty-print help and version
             App::new(binary_name)
+                .settings(uucore::DEFAULT_APP_SETTINGS)
                 .version(crate_version!())
                 .usage(USAGE)
                 .after_help(AFTER_HELP)

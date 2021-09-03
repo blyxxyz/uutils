@@ -132,6 +132,7 @@ fn gen_completions<T: uucore::Args>(
         .collect();
 
     let matches = App::new("completion")
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .about("Prints completions to stdout")
         .arg(
             Arg::with_name("utility")
@@ -162,7 +163,7 @@ fn gen_completions<T: uucore::Args>(
 }
 
 fn gen_coreutils_app<T: uucore::Args>(util_map: UtilityMap<T>) -> App<'static, 'static> {
-    let mut app = App::new("coreutils");
+    let mut app = App::new("coreutils").global_settings(uucore::DEFAULT_APP_SETTINGS);
     for (_, (_, sub_app)) in util_map {
         app = app.subcommand(sub_app());
     }

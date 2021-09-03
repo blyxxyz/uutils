@@ -119,7 +119,8 @@ fn build_command<'a, 'b>(args: &'a mut Vec<&'b str>) -> (Cow<'b, str>, &'a [&'b 
 }
 
 pub fn uu_app() -> App<'static, 'static> {
-    App::new(crate_name!())
+    App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())

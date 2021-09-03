@@ -214,6 +214,7 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
 
 pub fn uu_app() -> App<'static, 'static> {
     App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .version(crate_version!())
         .about("output the last part of files")
         // TODO: add usage

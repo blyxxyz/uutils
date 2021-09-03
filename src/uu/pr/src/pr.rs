@@ -169,7 +169,7 @@ quick_error! {
 
 pub fn uu_app() -> clap::App<'static, 'static> {
     // TODO: migrate to clap to get more shell completions
-    clap::App::new(uucore::util_name())
+    clap::App::new(uucore::util_name()).settings(uucore::DEFAULT_APP_SETTINGS)
 }
 
 pub fn uumain(args: impl uucore::Args) -> i32 {

@@ -290,6 +290,7 @@ static DEFAULT_ATTRIBUTES: &[Attribute] = &[
 
 pub fn uu_app() -> App<'static, 'static> {
     App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .version(crate_version!())
         .about(ABOUT)
         .arg(Arg::with_name(options::TARGET_DIRECTORY)

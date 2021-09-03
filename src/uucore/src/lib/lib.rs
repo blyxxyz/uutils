@@ -16,6 +16,8 @@ mod macros; // crate macros (macro_rules-type; exported to `crate::...`)
 mod mods; // core cross-platform modules
 mod parser; // string parsing modules
 
+use clap::AppSettings;
+
 // * cross-platform modules
 pub use crate::mods::backup_control;
 pub use crate::mods::coreopts;
@@ -69,6 +71,8 @@ pub use crate::features::wide;
 
 use std::ffi::OsString;
 use std::sync::atomic::Ordering;
+
+pub const DEFAULT_APP_SETTINGS: &[AppSettings] = &[AppSettings::AllArgsOverrideSelf];
 
 pub fn get_utility_is_second_arg() -> bool {
     crate::macros::UTILITY_IS_SECOND_ARG.load(Ordering::SeqCst)

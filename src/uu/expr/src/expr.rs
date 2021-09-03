@@ -19,6 +19,7 @@ const HELP: &str = "help";
 
 pub fn uu_app() -> App<'static, 'static> {
     App::new(uucore::util_name())
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .arg(Arg::with_name(VERSION).long(VERSION))
         .arg(Arg::with_name(HELP).long(HELP))
 }

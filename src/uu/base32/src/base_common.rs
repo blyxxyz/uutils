@@ -90,6 +90,7 @@ pub fn parse_base_cmd_args(
 
 pub fn base_app<'a>(name: &str, version: &'a str, about: &'a str) -> App<'static, 'a> {
     App::new(name)
+        .settings(uucore::DEFAULT_APP_SETTINGS)
         .version(version)
         .about(about)
         // Format arguments.
