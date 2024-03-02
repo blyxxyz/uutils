@@ -2862,7 +2862,6 @@ name = "uu_shuf"
 version = "0.0.24"
 dependencies = [
  "clap",
- "memchr",
  "rand",
  "rand_core",
  "uucore",
