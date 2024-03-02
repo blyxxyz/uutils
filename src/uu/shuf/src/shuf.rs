@@ -7,13 +7,14 @@
 
 use clap::builder::ValueParser;
 use clap::{crate_version, Arg, ArgAction, Command};
+use memmap2::Mmap;
 use rand::prelude::SliceRandom;
 use rand::{Rng, RngCore};
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{stdin, stdout, BufWriter, Error, Read, Write};
-use std::ops::RangeInclusive;
+use std::ops::{Deref, RangeInclusive};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use uucore::display::{OsWrite, Quotable};
@@ -225,15 +226,48 @@ pub fn uu_app() -> Command {
         )
 }
 
-fn read_input_file(filename: &Path) -> UResult<Vec<u8>> {
+fn read_input_file(filename: &Path) -> UResult<FileInput> {
     if filename.as_os_str() == "-" {
+        // SAFETY: We won't do anything spooky with these bytes. The file may
+        // change out from under us, but at worst we'll get a SIGBUS or bogus
+        // results.
+        if let Ok(map) = unsafe { Mmap::map(&stdin()) } {
+            return Ok(FileInput::Mapped(map));
+        }
+
         let mut data = Vec::new();
         stdin()
             .read_to_end(&mut data)
             .map_err_context(|| "read error".into())?;
-        Ok(data)
+        Ok(FileInput::Read(data))
     } else {
-        std::fs::read(filename).map_err_context(|| filename.maybe_quote().to_string())
+        let ctx = || filename.maybe_quote().to_string();
+        let mut file = File::open(filename).map_err_context(ctx)?;
+
+        // SAFETY: as above.
+        if let Ok(map) = unsafe { Mmap::map(&file) } {
+            return Ok(FileInput::Mapped(map));
+        }
+
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).map_err_context(ctx)?;
+        Ok(FileInput::Read(data))
+    }
+}
+
+enum FileInput {
+    Read(Vec<u8>),
+    Mapped(Mmap),
+}
+
+impl Deref for FileInput {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Read(buf) => buf,
+            Self::Mapped(map) => map,
+        }
     }
 }
 

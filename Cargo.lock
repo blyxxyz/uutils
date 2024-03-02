@@ -2863,6 +2863,7 @@ version = "0.0.24"
 dependencies = [
  "clap",
  "libc",
+ "memmap2",
  "rand",
  "rand_core",
  "uucore",

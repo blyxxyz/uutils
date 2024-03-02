@@ -16,6 +16,7 @@ path = "src/shuf.rs"
 
 [dependencies]
 clap = { workspace = true }
+memmap2 = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
 uucore = { workspace = true }

@@ -109,6 +109,7 @@ semiprimes
 setfacl
 shortcode
 shortcodes
+sigbus
 siginfo
 sigusr
 subcommand
@@ -142,6 +143,8 @@ consts
 deps
 dev
 maint
+memmap
+mmap
 proc
 procs
 

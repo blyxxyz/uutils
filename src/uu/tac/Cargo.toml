@@ -1,5 +1,3 @@
-# spell-checker:ignore memmap
-
 [package]
 name = "uu_tac"
 version = "0.0.24"
