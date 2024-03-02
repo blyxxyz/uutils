@@ -2862,6 +2862,7 @@ name = "uu_shuf"
 version = "0.0.24"
 dependencies = [
  "clap",
+ "libc",
  "rand",
  "rand_core",
  "uucore",

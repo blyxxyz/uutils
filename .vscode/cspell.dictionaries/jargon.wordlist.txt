@@ -118,6 +118,7 @@ sync
 symlink
 symlinks
 syscall
+sysconf
 syscalls
 tokenize
 toolchain

@@ -20,6 +20,9 @@ rand = { workspace = true }
 rand_core = { workspace = true }
 uucore = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [[bin]]
 name = "shuf"
 path = "src/main.rs"

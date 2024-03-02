@@ -58,11 +58,13 @@ MacOS
 MinGW
 Minix
 NetBSD
+Newlib
 Novell
 Nushell
 OpenBSD
 POSIX
 PowerPC
+relibc
 SELinux
 SkyPack
 Solaris

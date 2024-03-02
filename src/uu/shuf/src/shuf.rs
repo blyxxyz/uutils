@@ -21,6 +21,8 @@ use uucore::error::{FromIo, UResult, USimpleError, UUsageError};
 use uucore::{format_usage, help_about, help_usage};
 
 mod rand_read_adapter;
+#[cfg(unix)]
+mod vectored;
 
 enum Mode {
     Default(PathBuf),
@@ -130,6 +132,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         Mode::InputRange(mut range) => {
             shuf_exec(&mut range, &options, &mut rng, &mut output)?;
         }
+        #[cfg(unix)]
+        Mode::Default(filename) => {
+            // On Unix we can run 10-25% more efficiently by doing vectored writes.
+            // This optimization could be applied to other modes with some more effort,
+            // but it would probably only be worthwhile with --repeat.
+            let fdata = read_input_file(&filename)?;
+            shuf_exec_vectored(&fdata, &options, &mut rng, &mut output)?;
+        }
+        #[cfg(not(unix))]
         Mode::Default(filename) => {
             let fdata = read_input_file(&filename)?;
             let mut items = split_seps(&fdata, options.sep);
@@ -226,6 +237,7 @@ fn read_input_file(filename: &Path) -> UResult<Vec<u8>> {
     }
 }
 
+#[allow(unused)]
 fn split_seps(data: &[u8], sep: u8) -> Vec<&[u8]> {
     // A single trailing separator is ignored.
     // If data is empty (and does not even contain a single 'sep'
@@ -453,6 +465,56 @@ fn shuf_exec(
         }
     }
 
+    Ok(())
+}
+
+#[cfg(unix)]
+fn shuf_exec_vectored(
+    input: &[u8],
+    opts: &Options,
+    rng: &mut WrappedRng,
+    output: &mut BufWriter<Box<dyn OsWrite>>,
+) -> UResult<()> {
+    use std::io::IoSlice;
+
+    // We preserve the separators at the ends of elements so that we only need
+    // half as many slices.
+    // FIXME: maybe we can implement this optimization for other modes?
+    let mut slices: Vec<IoSlice> = input
+        .split_inclusive(|&b| b == opts.sep)
+        .map(IoSlice::new)
+        .collect();
+
+    // However, the last element might be missing its terminator. So we do a
+    // little dance to replace it.
+    let mut last_patched;
+    if let Some(last) = slices.last_mut() {
+        if !last.ends_with(&[opts.sep]) {
+            last_patched = last.to_vec();
+            last_patched.push(opts.sep);
+            *last = IoSlice::new(&last_patched);
+        }
+    }
+
+    let ctx = || "write failed".to_string();
+    if opts.repeat {
+        if input.is_empty() {
+            return Err(USimpleError::new(1, "no lines to repeat"));
+        }
+        let iov_max = vectored::iov_max();
+        let mut buffers = Vec::new();
+        for _ in 0..opts.head_count {
+            buffers.push(*slices.choose(rng).unwrap());
+            if buffers.len() >= iov_max {
+                vectored::write_all_vectored(output, &buffers).map_err_context(ctx)?;
+                buffers.clear();
+            }
+        }
+        vectored::write_all_vectored(output, &buffers).map_err_context(ctx)?;
+    } else {
+        let (shuffled, _) = slices.partial_shuffle(rng, opts.head_count);
+        vectored::write_all_vectored(output, shuffled).map_err_context(ctx)?;
+    }
     Ok(())
 }
 
