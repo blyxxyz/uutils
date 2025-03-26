@@ -5,16 +5,63 @@
 
 // spell-checker:ignore (ToDO) cmdline evec nonrepeating seps shufable rvec fdata
 
-use clap::builder::ValueParser;
-use clap::{Arg, ArgAction, Command};
-use rand::Rng;
-use rand::seq::{IndexedRandom, SliceRandom};
+//! `shuf` implementation with various reproducibility features.
+//!
+//! For `--random-source` we use a reverse engineered version of GNU's RNG so we get the
+//! exact same output. This doesn't work yet for at least two cases:
+//!
+//! - `--input-range` without `--repeat`.
+//!
+//! - stdin input without `--repeat` and with a limited `--head-count`.)
+//!
+//! As a better alternative to `--random-source` we provide `--random-seed` as our own
+//! extension. This gives reproducible results with an input string as a seed.
+//!
+//! Ideally the behavior should stay the same between releases, so don't change it without
+//! a very good reason. Currently `--random-seed` uses the same codepaths as the default
+//! mode but this could be split up if necessary to balance compatibility with
+//! performance/quality. (For example if ChaCha12 falls out of favor.)
+//!
+//! This is our procedure for `--random-seed`:
+//!
+//! - Take a Unicode string as the seed.
+//!
+//! - Encode this seed as UTF-8.
+//!
+//! - Take the SHA3-256 hash of the encoded seed.
+//!
+//! - Use that hash as the input for a `rand` ChaCha12 RNG.
+//!
+//! - Take samples using `rand` (as it behaved in version 0.9.0):
+//!
+//!   - IndexedRandom::choose() for text input with --repeat.
+//!
+//!   - SliceRandom::partial_shuffle() for text input without --repeat.
+//!
+//!   - Rng::random_range() for --input-source with --repeat.
+//!
+//!   - Whatever our own NonrepeatingIterator does for --input-source without --repeat.
+//!     (This is not hyper-optimized, maybe we'll want to change it some day?)
+//!
+//! `rand` promises that the output of its ChaCha12 RNG and these distributions is
+//! reproducible within patch releases: https://rust-random.github.io/book/crate-reprod.html
+//!
+//! (If you're here to make another tool compatible with uutils: I apologize.)
+
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, Read, Write, stdin, stdout};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+use clap::{Arg, ArgAction, Command, builder::ValueParser};
+use rand::{
+    Rng, SeedableRng,
+    seq::{IndexedRandom, SliceRandom},
+};
+use sha3::{Digest, Sha3_256};
+
 use uucore::display::{OsWrite, Quotable};
 use uucore::error::{FromIo, UResult, USimpleError, UUsageError};
 use uucore::{format_usage, help_about, help_usage};
@@ -38,9 +85,15 @@ static ABOUT: &str = help_about!("shuf.md");
 struct Options {
     head_count: u64,
     output: Option<PathBuf>,
-    random_source: Option<PathBuf>,
+    random_source: RandomSource,
     repeat: bool,
     sep: u8,
+}
+
+enum RandomSource {
+    None,
+    Seed(String),
+    File(PathBuf),
 }
 
 mod options {
@@ -49,6 +102,7 @@ mod options {
     pub static HEAD_COUNT: &str = "head-count";
     pub static OUTPUT: &str = "output";
     pub static RANDOM_SOURCE: &str = "random-source";
+    pub static RANDOM_SEED: &str = "random-seed";
     pub static REPEAT: &str = "repeat";
     pub static ZERO_TERMINATED: &str = "zero-terminated";
     pub static FILE_OR_ARGS: &str = "file-or-args";
@@ -82,6 +136,14 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         Mode::Default(file.into())
     };
 
+    let random_source = if let Some(filename) = matches.get_one(options::RANDOM_SOURCE).cloned() {
+        RandomSource::File(filename)
+    } else if let Some(seed) = matches.get_one(options::RANDOM_SEED).cloned() {
+        RandomSource::Seed(seed)
+    } else {
+        RandomSource::None
+    };
+
     let options = Options {
         // GNU shuf takes the lowest value passed, so we imitate that.
         // It's probably a bug or an implementation artifact though.
@@ -94,7 +156,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             .min()
             .unwrap_or(u64::MAX),
         output: matches.get_one(options::OUTPUT).cloned(),
-        random_source: matches.get_one(options::RANDOM_SOURCE).cloned(),
+        random_source,
         repeat: matches.get_flag(options::REPEAT),
         sep: if matches.get_flag(options::ZERO_TERMINATED) {
             b'\0'
@@ -121,13 +183,22 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     }
 
     let mut rng = match options.random_source {
-        Some(ref r) => {
+        RandomSource::None => {
+            WrappedRng::RngDefault(Box::new(rand_chacha::ChaCha12Rng::from_os_rng()))
+        }
+        RandomSource::Seed(ref seed) => {
+            let mut hasher = Sha3_256::new();
+            hasher.update(seed.as_bytes());
+            let seed = hasher.finalize();
+            let seed = seed.as_slice().try_into().unwrap();
+            WrappedRng::RngDefault(Box::new(rand_chacha::ChaCha12Rng::from_seed(seed)))
+        }
+        RandomSource::File(ref r) => {
             let file = File::open(r)
                 .map_err_context(|| format!("failed to open random source {}", r.quote()))?;
             let file = BufReader::new(file);
             WrappedRng::RngFile(compat_random_source::RandomSourceAdapter::new(file))
         }
-        None => WrappedRng::RngDefault(rand::rng()),
     };
 
     match mode {
@@ -189,6 +260,15 @@ pub fn uu_app() -> Command {
                 .help("write result to FILE instead of standard output")
                 .value_parser(ValueParser::path_buf())
                 .value_hint(clap::ValueHint::FilePath),
+        )
+        .arg(
+            Arg::new(options::RANDOM_SEED)
+                .long(options::RANDOM_SEED)
+                .value_name("STRING")
+                .help("seed with STRING for reproducible output")
+                .value_parser(ValueParser::string())
+                .value_hint(clap::ValueHint::Other)
+                .conflicts_with(options::RANDOM_SOURCE),
         )
         .arg(
             Arg::new(options::RANDOM_SOURCE)
@@ -387,7 +467,7 @@ fn parse_range(input_range: &str) -> Result<RangeInclusive<u64>, String> {
 }
 
 enum WrappedRng {
-    RngDefault(rand::rngs::ThreadRng),
+    RngDefault(Box<rand_chacha::ChaCha12Rng>),
     RngFile(compat_random_source::RandomSourceAdapter<BufReader<File>>),
 }
 

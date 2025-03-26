@@ -11,6 +11,7 @@ canonicalization
 canonicalize
 canonicalizing
 capget
+codepaths
 codepoint
 codepoints
 codeready
